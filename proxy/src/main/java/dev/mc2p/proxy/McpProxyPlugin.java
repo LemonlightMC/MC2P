@@ -17,14 +17,14 @@ import dev.mc2p.common.activity.ClientActivityTracker;
 import dev.mc2p.common.config.ConfigSupport;
 import dev.mc2p.common.http.HttpEndpointConfig;
 import dev.mc2p.common.http.McpHttpServer;
-import dev.mc2p.common.setup.SetupSupport;
+import dev.mc2p.common.tokens.ProxySecret;
 import dev.mc2p.common.tokens.TokenManager;
 import dev.mc2p.common.tokens.TokenManager.Token;
-import dev.mc2p.common.validate.Utils;
 import dev.mc2p.proxy.config.ProxyConfig;
 import dev.mc2p.proxy.http.HealthzServlet;
 import dev.mc2p.proxy.rpc.BackendClient;
 import dev.mc2p.proxy.rpc.RpcListener;
+import dev.mc2p.proxy.tools.McpProxyBootstrap;
 import dev.mc2p.proxy.tools.RelayTools;
 import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
@@ -112,6 +112,7 @@ public final class McpProxyPlugin {
     public synchronized void init() {
         teardown();
         config = ProxyConfig.load(loadConfig());
+        final ProxySecret secret = setupProxySecret();
 
         tokens = new TokenManager(dataDirectory.resolve("tokens.yml"), dataDirectory);
         tokens.load();
@@ -122,23 +123,13 @@ public final class McpProxyPlugin {
                 config.audit().maxMb(),
                 config.audit().maxFiles());
 
-        String proxySecret = resolveProxySecret(config);
-        if (proxySecret == null) {
-            logger.warn(
-                    "MC2P proxy secret ({}) is not set - generating one now (shown once); "
-                            + "set it on every backend as the same env var or in plugins/MC2P/proxy-secret.",
-                    config.rpc().secretEnv());
-            proxySecret = ensureProxySecret(config);
-            logger.info("  MC2P_PROXY_SECRET: {}", proxySecret);
-        }
-
         final String[] channelParts = config.rpc().channel().split(":", 2);
         channel = channelParts.length == 2
                 ? MinecraftChannelIdentifier.create(channelParts[0], channelParts[1])
                 : MinecraftChannelIdentifier.create("mc2p", config.rpc().channel());
         backendClient = new BackendClient(
                 channel,
-                proxySecret,
+                secret.value(),
                 config.rpc().timeoutMs(),
                 HELLO_WINDOW_NANOS,
                 config.rpc().maxChunks(),
@@ -207,35 +198,6 @@ public final class McpProxyPlugin {
         }
         server.getEventManager().unregisterListener(this, this);
         backendClient = null;
-    }
-
-    private String resolveProxySecret(final ProxyConfig config) {
-        final String env = config.rpc().secretEnv();
-        if (env != null && !env.isBlank()) {
-            final String value = System.getenv(env);
-            if (value != null && !value.isBlank()) {
-                return value;
-            }
-        }
-        return SetupSupport.readSecretFile(dataDirectory, SetupSupport.PROXY_SECRET_FILE);
-    }
-
-    /**
-     * Ensures a proxy secret exists (env var or the proxy-secret file), generating
-     * and persisting one if not.
-     */
-    private String ensureProxySecret(final ProxyConfig config) {
-        final String secret = resolveProxySecret(config);
-        if (secret != null) {
-            return secret;
-        }
-        final String generated = Utils.generateToken();
-        try {
-            SetupSupport.writeSecretFile(dataDirectory, SetupSupport.PROXY_SECRET_FILE, generated);
-        } catch (final java.io.IOException e) {
-            throw new IllegalStateException("Failed to persist the proxy secret", e);
-        }
-        return generated;
     }
 
     private Map<String, Object> loadConfig() {
@@ -312,20 +274,17 @@ public final class McpProxyPlugin {
         return generated;
     }
 
-    /**
-     * The active proxy secret (env var or the proxy-secret file), or null when
-     * unset.
-     */
-    public String proxySecret() {
-        return config == null ? null : resolveProxySecret(config);
-    }
-
-    /**
-     * Ensures a proxy secret exists (env var or proxy-secret file), generating one
-     * if needed.
-     */
-    public String ensureProxySecret() {
-        return ensureProxySecret(config);
+    public ProxySecret setupProxySecret() {
+        ProxySecret secret = ProxySecret.resolve(config().rpc().secretEnv(), dataDirectory());
+        if (secret == null) {
+            logger.warn(
+                    "MC2P proxy secret ({}) is not set - generating one now (shown once); "
+                            + "set it on every backend as the same env var or in plugins/MC2P/proxy-secret.",
+                    config.rpc().secretEnv());
+            secret = ProxySecret.ensure(config().rpc().secretEnv(), dataDirectory());
+            logger.info("  MC2P_PROXY_SECRET: {}", secret);
+        }
+        return secret;
     }
 
     /** Re-registers every known backend with the RPC client (idempotent). */

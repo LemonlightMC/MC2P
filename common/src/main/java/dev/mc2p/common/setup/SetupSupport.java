@@ -1,10 +1,6 @@
 package dev.mc2p.common.setup;
 
 import dev.mc2p.common.json.Json;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -15,42 +11,7 @@ import java.util.Map;
  */
 public final class SetupSupport {
 
-    /**
-     * File name of the proxy secret fallback inside each plugin's data directory.
-     */
-    public static final String PROXY_SECRET_FILE = "proxy-secret";
-
     private SetupSupport() {
-    }
-
-    /**
-     * Reads a secret from {@code dataDir/name}, or returns null when the file is
-     * missing
-     * or blank.
-     */
-    public static String readSecretFile(final Path dataDir, final String name) {
-        final Path file = dataDir.resolve(name);
-        if (!Files.isRegularFile(file)) {
-            return null;
-        }
-        try {
-            final String value = Files.readString(file).trim();
-            return value.isEmpty() ? null : value;
-        } catch (final IOException e) {
-            return null;
-        }
-    }
-
-    /** Writes {@code dataDir/name} with the secret and 0600 permissions. */
-    public static void writeSecretFile(final Path dataDir, final String name, final String secret) throws IOException {
-        Files.createDirectories(dataDir);
-        final Path file = dataDir.resolve(name);
-        Files.writeString(file, secret);
-        try {
-            Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
-        } catch (final UnsupportedOperationException ignored) {
-            // non-POSIX filesystem
-        }
     }
 
     /**

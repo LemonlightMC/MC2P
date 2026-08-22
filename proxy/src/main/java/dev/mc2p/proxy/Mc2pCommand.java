@@ -6,6 +6,7 @@ import dev.jorel.commandapi.arguments.StringArgument;
 import dev.jorel.commandapi.executors.CommandArguments;
 import dev.mc2p.common.activity.ClientActivityTracker;
 import dev.mc2p.common.setup.SetupSupport;
+import dev.mc2p.common.tokens.ProxySecret;
 import dev.mc2p.common.tokens.TokenManager;
 import dev.mc2p.common.tokens.TokenManager.Token;
 
@@ -80,9 +81,9 @@ public final class Mc2pCommand {
                     "  " + token.name() + " token id: " + token.tokenId() + (token.disabled() ? " (disabled)" : "")));
         }
 
-        String secret = plugin.proxySecret();
+        ProxySecret secret = ProxySecret.retrieve();
         if (secret == null) {
-            secret = plugin.ensureProxySecret();
+            secret = plugin.setupProxySecret();
             source.sendMessage(Component.text(
                     "Generated shared proxy secret (shown once) - set it on EVERY backend:", NamedTextColor.GREEN));
         } else {

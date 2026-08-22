@@ -7,7 +7,7 @@ import dev.mc2p.common.activity.ClientActivityTracker;
 import dev.mc2p.common.config.ConfigSupport;
 import dev.mc2p.common.http.HttpEndpointConfig;
 import dev.mc2p.common.http.McpHttpServer;
-import dev.mc2p.common.setup.SetupSupport;
+import dev.mc2p.common.tokens.ProxySecret;
 import dev.mc2p.common.tokens.TokenManager;
 import dev.mc2p.common.tokens.TokenManager.Token;
 import dev.mc2p.plugin.config.BackendConfig;
@@ -100,6 +100,21 @@ public final class Mc2pPlugin extends JavaPlugin {
             return;
         }
 
+        if ("backend".equals(mode)) {
+            ProxySecret.resolve(config().proxy().secretEnv(), dataDirectory());
+
+            if (!ProxySecret.isPresent()) {
+                log.error(
+                        "MC2P backend mode: no proxy secret is set ({} env var or plugins/MC2P/proxy-secret). "
+                                + "Set the same secret here and on the proxy, or run /mc2p setup on the proxy to "
+                                + "generate one. Disabling the MCP backend.",
+                        config.proxy().secretEnv());
+                getServer().getPluginManager().disablePlugin(this);
+                return;
+            }
+
+        }
+
         tokens = new TokenManager(dataDir.resolve("tokens.yml"), dataDir);
         tokens.load();
         activity = new ClientActivityTracker(config.auth().activityWindowMinutes());
@@ -120,16 +135,6 @@ public final class Mc2pPlugin extends JavaPlugin {
         ReadTools.register(registry, facade, config);
         WriteTools.register(registry, facade, config);
         invoker = new ToolInvoker(registry, audit, config.serverId());
-
-        if ("backend".equals(mode) && resolveProxySecret() == null) {
-            log.error(
-                    "MC2P backend mode: no proxy secret is set ({} env var or plugins/MC2P/proxy-secret). "
-                            + "Set the same secret here and on the proxy, or run /mc2p setup on the proxy to "
-                            + "generate one. Disabling the MCP backend.",
-                    config.proxy().secretEnv());
-            getServer().getPluginManager().disablePlugin(this);
-            return;
-        }
 
         if ("backend".equals(mode)) {
             startBackendMode(dataDir);
@@ -170,19 +175,13 @@ public final class Mc2pPlugin extends JavaPlugin {
     }
 
     private void startBackendMode(final Path dataDir) {
-        final String secret = resolveProxySecret();
-        if (secret == null || secret.isBlank()) {
-            log.warn(
-                    "MC2P backend mode: proxy secret ({}) is not set - the proxy will not be able to authenticate",
-                    config.proxy().secretEnv());
-        }
         rpcServer = new BackendRpcServer(
                 this,
                 invoker,
                 config.effectiveRestrictions(),
                 config.serverId(),
                 config.proxy().rpcChannel(),
-                secret,
+                ProxySecret.retrieve().value(),
                 config.proxy().timeoutMs());
         getServer()
                 .getMessenger()
@@ -225,27 +224,8 @@ public final class Mc2pPlugin extends JavaPlugin {
         if (!"auto".equals(configured)) {
             return configured;
         }
-        final boolean behindProxy = isBehindBungee() || proxySecretPresent();
+        final boolean behindProxy = isBehindBungee() || ProxySecret.isPresent();
         return behindProxy ? "backend" : "standalone";
-    }
-
-    private boolean proxySecretPresent() {
-        return resolveProxySecret() != null;
-    }
-
-    /**
-     * The shared proxy secret: the configured env var first, then
-     * plugins/MC2P/proxy-secret.
-     */
-    public String resolveProxySecret() {
-        final String env = config.proxy().secretEnv();
-        if (env != null && !env.isBlank()) {
-            final String value = System.getenv(env);
-            if (value != null && !value.isBlank()) {
-                return value;
-            }
-        }
-        return SetupSupport.readSecretFile(dataDirectory(), SetupSupport.PROXY_SECRET_FILE);
     }
 
     private boolean isBehindBungee() {

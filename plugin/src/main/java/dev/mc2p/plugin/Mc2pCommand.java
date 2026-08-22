@@ -5,6 +5,7 @@ import dev.jorel.commandapi.arguments.StringArgument;
 import dev.jorel.commandapi.executors.CommandArguments;
 import dev.mc2p.common.activity.ClientActivityTracker;
 import dev.mc2p.common.setup.SetupSupport;
+import dev.mc2p.common.tokens.ProxySecret;
 import dev.mc2p.common.tokens.TokenManager;
 import dev.mc2p.common.tokens.TokenManager.Token;
 import dev.mc2p.plugin.config.BackendConfig;
@@ -95,8 +96,7 @@ public final class Mc2pCommand {
         private void setup(final CommandSender sender) {
                 final BackendConfig config = plugin.config();
                 if ("backend".equals(plugin.effectiveMode())) {
-                        final String secret = plugin.resolveProxySecret();
-                        if (secret == null) {
+                        if (!ProxySecret.isPresent()) {
                                 sender.sendMessage(PREFIX.append(Component.text(
                                                 "Backend mode: no proxy secret is set. "
                                                                 + "Set " + config.proxy().secretEnv()
@@ -205,7 +205,7 @@ public final class Mc2pCommand {
                                                         NamedTextColor.RED)));
                         return;
                 }
-                if ("backend".equals(requested) && plugin.resolveProxySecret() == null) {
+                if ("backend".equals(requested) && !ProxySecret.isPresent()) {
                         sender.sendMessage(PREFIX.append(Component.text(
                                         "Backend mode requires the proxy secret: set "
                                                         + plugin.config().proxy().secretEnv()

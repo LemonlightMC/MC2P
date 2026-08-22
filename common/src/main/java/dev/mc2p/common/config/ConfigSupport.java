@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -18,6 +19,11 @@ import dev.mc2p.common.validate.Utils;
  */
 public final class ConfigSupport {
     private static final String HASH_PREFIX = "sha256:";
+
+    /**
+     * File name of the proxy secret fallback inside each plugin's data directory.
+     */
+    public static final String PROXY_SECRET_FILE = "proxy-secret";
 
     private ConfigSupport() {
     }
@@ -106,25 +112,43 @@ public final class ConfigSupport {
             }
         }
         if (str.startsWith("file:")) {
-            final String pathSpec = str.substring(5).trim();
-            Path path = Path.of(pathSpec);
-            if (!path.isAbsolute()) {
-                path = baseDir.resolve(pathSpec);
-            }
-            if (!Files.isRegularFile(path)) {
+            final String value = readFile(baseDir, str.substring(5).trim());
+            if (value == null) {
                 return null;
             }
-            try {
-                final String value = Files.readString(path).trim();
-                if (value.isEmpty()) {
-                    return null;
-                }
-                return new Secret(value, Utils.sha256(value), str);
-            } catch (final IOException e) {
-                return null;
-            }
+            return new Secret(value, Utils.sha256(value), str);
         }
         // Plaintext: allowed but warned by the caller.
         return new Secret(str, Utils.sha256(str), str);
+    }
+
+    public static String readFile(final Path dataDir, final String name) {
+        return readFile(dataDir.resolve(name));
+    }
+
+    public static String readFile(final Path path) {
+        if (!Files.isRegularFile(path)) {
+            return null;
+        }
+        try {
+            final String value = Files.readString(path).trim();
+            return value.isEmpty() ? null : value;
+        } catch (final IOException e) {
+            return null;
+        }
+    }
+
+    public static boolean writeFile(final Path dataDir, final String name, final String data) throws Exception {
+        try {
+            Files.createDirectories(dataDir);
+            final Path file = dataDir.resolve(name);
+            Files.writeString(file, data);
+            Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
+            return true;
+        } catch (final UnsupportedOperationException ignored) {
+            return true; // Windows: ignore permissions
+        } catch (final Exception ex) {
+            throw ex;
+        }
     }
 }

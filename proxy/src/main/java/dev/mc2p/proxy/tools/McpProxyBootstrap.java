@@ -1,4 +1,4 @@
-package dev.mc2p.proxy;
+package dev.mc2p.proxy.tools;
 
 import com.velocitypowered.api.proxy.ProxyServer;
 
@@ -7,7 +7,6 @@ import dev.mc2p.common.http.DnsRebindingValidator;
 import dev.mc2p.common.http.McpRequestContextExtractor;
 import dev.mc2p.common.json.Json;
 import dev.mc2p.proxy.rpc.BackendClient;
-import dev.mc2p.proxy.tools.RelayTools;
 import io.modelcontextprotocol.json.McpJsonDefaults;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncResourceSpecification;
