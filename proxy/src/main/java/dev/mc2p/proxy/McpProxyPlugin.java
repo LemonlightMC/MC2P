@@ -12,6 +12,7 @@ import com.velocitypowered.api.proxy.messages.MinecraftChannelIdentifier;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
 import dev.jorel.commandapi.CommandAPI;
 import dev.jorel.commandapi.CommandAPIVelocityConfig;
+import dev.mc2p.common.StateHolder;
 import dev.mc2p.common.activity.ActivityLogger;
 import dev.mc2p.common.activity.ClientActivityTracker;
 import dev.mc2p.common.config.ConfigSupport;
@@ -40,7 +41,7 @@ import org.slf4j.Logger;
  * calls to backend Paper servers over {@code mc2p:rpc}. Loaded via
  * {@code velocity-plugin.json} with constructor injection.
  */
-public final class McpProxyPlugin {
+public final class McpProxyPlugin implements StateHolder<ProxyConfig> {
 
     /**
      * Trust window granted by a {@code hello} handshake; proxy re-sends hello
@@ -116,8 +117,8 @@ public final class McpProxyPlugin {
 
         tokens = new TokenManager(dataDirectory.resolve("tokens.yml"), dataDirectory);
         tokens.load();
-        activity = new ClientActivityTracker(config.auth().activityWindowMinutes());
 
+        activity = new ClientActivityTracker(config.auth().activityWindowMinutes());
         audit = new ActivityLogger(
                 dataDirectory.resolve(config.audit().file()),
                 config.audit().maxMb(),
@@ -139,9 +140,7 @@ public final class McpProxyPlugin {
         rpcListener = new RpcListener(backendClient, channel);
         server.getEventManager().register(this, rpcListener);
         server.getEventManager().register(this, this);
-        for (final RegisteredServer registered : server.getAllServers()) {
-            registerBackend(registered);
-        }
+        activateBackends();
 
         final HttpServletStreamableServerTransportProvider transport = McpProxyBootstrap
                 .transport(config.mcp().endpoint());
@@ -174,13 +173,6 @@ public final class McpProxyPlugin {
                 config.serverId(),
                 backendClient.knownServerIds().size(),
                 RelayTools.count());
-    }
-
-    private void registerBackend(final RegisteredServer registered) {
-        final String name = registered.getServerInfo().getName();
-        final String serverId = config.servers().getOrDefault(name, name);
-        backendClient.registerServer(serverId, registered);
-        logger.info("MC2P registered backend {} -> {}", name, serverId);
     }
 
     private void teardown() {
@@ -297,12 +289,19 @@ public final class McpProxyPlugin {
         }
     }
 
-    public int toolCount() {
-        return RelayTools.count();
+    private void registerBackend(final RegisteredServer registered) {
+        final String name = registered.getServerInfo().getName();
+        final String serverId = config.servers().getOrDefault(name, name);
+        backendClient.registerServer(serverId, registered);
+        logger.info("MC2P registered backend {} -> {}", name, serverId);
     }
 
     public java.util.List<String> backendServerIds() {
         return backendClient == null ? java.util.List.of() : backendClient.knownServerIds();
+    }
+
+    public int toolCount() {
+        return RelayTools.count();
     }
 
     public void reload() {

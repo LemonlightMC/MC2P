@@ -21,10 +21,9 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Owns the single TLS HTTP port for the standalone topology: the MCP endpoint
- * (auth-gated)
- * and the unauthenticated health endpoint. TLS modes: {@code selfsigned}
- * (default),
- * {@code keystore}, {@code none-behind-proxy}, {@code none} (loud warning).
+ * (auth-gated) and the unauthenticated health endpoint.
+ * TLS modes: {@code selfsigned} (default), {@code keystore},
+ * {@code none-behind-proxy}, {@code none} (loud warning).
  */
 public final class McpHttpServer {
 
@@ -32,7 +31,6 @@ public final class McpHttpServer {
 
     private final Server server;
     private final ServletContextHandler context;
-    private final String endpoint;
 
     public McpHttpServer(
             final HttpEndpointConfig http,
@@ -43,21 +41,19 @@ public final class McpHttpServer {
             final Path dataDir,
             final String serverId,
             final ClientActivityTracker activity) {
-        this.endpoint = http.endpoint();
 
-        this.server = new Server();
         this.context = new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
         this.context.setContextPath("/");
-
-        final ServerConnector connector = buildConnector(http, dataDir, serverId);
-        this.server.addConnector(connector);
-        this.server.setHandler(context);
 
         final TokenBucketRateLimiter rateLimiter = new TokenBucketRateLimiter(rateLimit);
         final AuthFilter authFilter = new AuthFilter(tokens, serverRestrictions, ipAllowlist, rateLimiter,
                 http.bodyLimitBytes(), activity);
-        final FilterHolder filterHolder = new FilterHolder(authFilter);
-        context.addFilter(filterHolder, endpoint, EnumSet.of(DispatcherType.REQUEST));
+        context.addFilter(new FilterHolder(authFilter), http.endpoint(), EnumSet.of(DispatcherType.REQUEST));
+
+        this.server = new Server();
+        this.server.addConnector(buildConnector(http, dataDir, serverId));
+        this.server.setHandler(context);
+
     }
 
     private ServerConnector buildConnector(final HttpEndpointConfig http, final Path dataDir, final String serverId) {

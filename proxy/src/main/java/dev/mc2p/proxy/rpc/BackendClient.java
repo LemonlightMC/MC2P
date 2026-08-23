@@ -6,6 +6,8 @@ import dev.mc2p.common.config.RestrictionsConfig;
 import dev.mc2p.common.json.Json;
 import dev.mc2p.common.rpc.RpcChunkAssembler;
 import dev.mc2p.common.rpc.RpcMessage;
+
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,13 +20,10 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Proxy-side relay over {@code mc2p:rpc}. Sends an authenticated {@code hello}
- * before each
- * request (plugin-messaging ordering guarantees the backend processes it first,
- * so the
- * shared {@code proxySecret} handshake is enforced on every call), correlates
- * responses by
- * id, and reassembles chunked responses. Runs entirely on Velocity/event
- * threads.
+ * before each request (plugin-messaging ordering guarantees the backend
+ * processes it first, so the {@code proxySecret} handshake is enforced on every
+ * call), correlates responses by id, and reassembles chunked responses.
+ * Runs entirely on Velocity/event threads.
  */
 public final class BackendClient {
 
@@ -77,19 +76,20 @@ public final class BackendClient {
 
     public void unregisterServer(final String serverName) {
         final String serverId = nameToServerId.remove(serverName);
-        if (serverId != null) {
-            final Connection conn = connections.get(serverId);
-            if (conn != null) {
-                for (final CompletableFuture<Map<String, Object>> f : conn.pending.values()) {
-                    f.complete(null);
-                }
-                conn.pending.clear();
+        if (serverId == null) {
+            return;
+        }
+        final Connection conn = connections.get(serverId);
+        if (conn != null) {
+            for (final CompletableFuture<Map<String, Object>> f : conn.pending.values()) {
+                f.complete(null);
             }
+            conn.pending.clear();
         }
     }
 
-    public java.util.List<String> knownServerIds() {
-        return new java.util.ArrayList<>(connections.keySet());
+    public List<String> knownServerIds() {
+        return List.copyOf(connections.keySet());
     }
 
     /**
@@ -101,8 +101,7 @@ public final class BackendClient {
 
     /**
      * Relays one tool call to a backend and blocks until the response arrives or
-     * the
-     * timeout elapses.
+     * the timeout elapses.
      *
      * @return the {@code resp} message ({@code ok/result|error}), or empty if
      *         unreachable
