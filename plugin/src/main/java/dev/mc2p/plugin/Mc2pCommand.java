@@ -99,7 +99,7 @@ public final class Mc2pCommand {
                         if (!ProxySecret.isPresent()) {
                                 sender.sendMessage(PREFIX.append(Component.text(
                                                 "Backend mode: no proxy secret is set. "
-                                                                + "Set " + config.proxy().secretEnv()
+                                                                + "Set " + config.rpc().secretEnv()
                                                                 + " or place plugins/MC2P/proxy-secret, "
                                                                 + "then run /mc2p reload.",
                                                 NamedTextColor.RED)));
@@ -109,7 +109,7 @@ public final class Mc2pCommand {
                         sender.sendMessage(Component.text("  serverId: ", NamedTextColor.GRAY)
                                         .append(Component.text(plugin.serverId(), NamedTextColor.WHITE)));
                         sender.sendMessage(Component.text("  rpc channel: ", NamedTextColor.GRAY)
-                                        .append(Component.text(config.proxy().rpcChannel(), NamedTextColor.WHITE)));
+                                        .append(Component.text(config.rpc().channel(), NamedTextColor.WHITE)));
                         sender.sendMessage(Component.text("  proxy secret: ", NamedTextColor.GRAY)
                                         .append(Component.text("set", NamedTextColor.GREEN)));
                         sender.sendMessage(PREFIX
@@ -136,7 +136,7 @@ public final class Mc2pCommand {
                                 .append(Component.text(
                                                 config.mcp().bind() + ":" + config.mcp().port()
                                                                 + config.mcp().endpoint() + " (tls="
-                                                                + config.mcp().tls().mode() + ")",
+                                                                + config.mcp().tlsMode() + ")",
                                                 NamedTextColor.WHITE)));
 
                 final String template = SetupSupport.clientConfigTemplate(config.mcp().port());
@@ -171,7 +171,7 @@ public final class Mc2pCommand {
                                 .append(Component.text(
                                                 config.mcp().bind() + ":" + config.mcp().port()
                                                                 + config.mcp().endpoint() + " (tls="
-                                                                + config.mcp().tls().mode() + ")",
+                                                                + config.mcp().tlsMode() + ")",
                                                 NamedTextColor.WHITE)));
                 sender.sendMessage(Component.text("  restart strategy: ", NamedTextColor.GRAY)
                                 .append(Component.text(config.restartStrategy(), NamedTextColor.WHITE)));
@@ -189,7 +189,7 @@ public final class Mc2pCommand {
 
         private void reload(final CommandSender sender) {
                 try {
-                        plugin.applyConfig();
+                        plugin.init();
                         sender.sendMessage(
                                         PREFIX.append(Component.text("Configuration reloaded.", NamedTextColor.GREEN)));
                 } catch (final RuntimeException e) {
@@ -208,14 +208,14 @@ public final class Mc2pCommand {
                 if ("backend".equals(requested) && !ProxySecret.isPresent()) {
                         sender.sendMessage(PREFIX.append(Component.text(
                                         "Backend mode requires the proxy secret: set "
-                                                        + plugin.config().proxy().secretEnv()
+                                                        + plugin.config().rpc().secretEnv()
                                                         + " or plugins/MC2P/proxy-secret first.",
                                         NamedTextColor.RED)));
                         return;
                 }
                 try {
                         final Path active = ConfigFiles.switchTo(plugin, plugin.dataDirectory(), requested);
-                        plugin.applyConfig();
+                        plugin.init();
                         sender.sendMessage(PREFIX.append(Component.text(
                                         "Switched to " + requested + " mode (" + active.getFileName() + ").",
                                         NamedTextColor.GREEN)));

@@ -1,5 +1,6 @@
 package dev.mc2p.plugin.http;
 
+import dev.mc2p.common.http.HealthEndpoint;
 import dev.mc2p.common.json.Json;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -9,7 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /** Unauthenticated, minimal health endpoint shared with the MCP port. */
-public final class HealthzServlet extends HttpServlet {
+public final class HealthzServlet extends HttpServlet implements HealthEndpoint {
 
     private final String serverId;
     private final String version;

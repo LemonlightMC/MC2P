@@ -3,11 +3,8 @@ package dev.mc2p.proxy.tools;
 import com.velocitypowered.api.proxy.ProxyServer;
 
 import dev.mc2p.common.activity.ActivityLogger;
-import dev.mc2p.common.http.DnsRebindingValidator;
-import dev.mc2p.common.http.McpRequestContextExtractor;
 import dev.mc2p.common.json.Json;
 import dev.mc2p.proxy.rpc.BackendClient;
-import io.modelcontextprotocol.json.McpJsonDefaults;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncResourceSpecification;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
@@ -15,7 +12,6 @@ import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.ReadResourceResult;
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -89,14 +85,4 @@ public final class McpProxyBootstrap {
                                 .build();
         }
 
-        /** Convenience: builds the transport provider with MC2P's security wiring. */
-        public static HttpServletStreamableServerTransportProvider transport(final String endpoint) {
-                return HttpServletStreamableServerTransportProvider.builder()
-                                .jsonMapper(McpJsonDefaults.getMapper())
-                                .mcpEndpoint(endpoint)
-                                .contextExtractor(new McpRequestContextExtractor())
-                                .securityValidator(new DnsRebindingValidator())
-                                .keepAliveInterval(Duration.ofSeconds(30))
-                                .build();
-        }
 }

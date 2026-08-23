@@ -16,7 +16,6 @@ import dev.mc2p.common.StateHolder;
 import dev.mc2p.common.activity.ActivityLogger;
 import dev.mc2p.common.activity.ClientActivityTracker;
 import dev.mc2p.common.config.ConfigSupport;
-import dev.mc2p.common.http.HttpEndpointConfig;
 import dev.mc2p.common.http.McpHttpServer;
 import dev.mc2p.common.tokens.ProxySecret;
 import dev.mc2p.common.tokens.TokenManager;
@@ -28,7 +27,6 @@ import dev.mc2p.proxy.rpc.RpcListener;
 import dev.mc2p.proxy.tools.McpProxyBootstrap;
 import dev.mc2p.proxy.tools.RelayTools;
 import io.modelcontextprotocol.server.McpSyncServer;
-import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
@@ -63,7 +61,6 @@ public final class McpProxyPlugin implements StateHolder<ProxyConfig> {
     private ChannelIdentifier channel;
     private RpcListener rpcListener;
     private McpHttpServer httpServer;
-    private McpSyncServer mcpServer;
 
     public McpProxyPlugin(
             final ProxyServer server,
@@ -142,30 +139,16 @@ public final class McpProxyPlugin implements StateHolder<ProxyConfig> {
         server.getEventManager().register(this, this);
         activateBackends();
 
-        final HttpServletStreamableServerTransportProvider transport = McpProxyBootstrap
-                .transport(config.mcp().endpoint());
-        mcpServer = McpProxyBootstrap.build(backendClient, server, audit, config.serverId(), version, startedAt,
-                transport);
-
-        final HttpEndpointConfig http = new HttpEndpointConfig(
-                config.mcp().bind(),
-                config.mcp().port(),
-                config.mcp().endpoint(),
-                config.mcp().bodyLimitBytes(),
-                config.mcp().tls().mode(),
-                config.mcp().tls().keystore(),
-                config.mcp().tls().passwordEnv());
-        httpServer = new McpHttpServer(
-                http,
-                tokens,
-                config.globalRestrictions(),
-                config.auth().ipAllowlist(),
-                config.auth().rateLimit(),
-                dataDirectory,
-                config.serverId(),
-                activity);
-        httpServer.registerServlet(transport, config.mcp().endpoint());
-        httpServer.registerServlet(new HealthzServlet(config.serverId(), version), "/healthz");
+        httpServer = new McpHttpServer(this, config.globalRestrictions(),
+                (transport) -> {
+                    return McpProxyBootstrap.build(backendClient,
+                            server, audit, config.serverId(), version, startedAt,
+                            transport);
+                },
+                () -> {
+                    return new HealthzServlet(
+                            config.serverId(), version);
+                });
         httpServer.start();
 
         logger.info(
@@ -175,14 +158,10 @@ public final class McpProxyPlugin implements StateHolder<ProxyConfig> {
                 RelayTools.count());
     }
 
-    private void teardown() {
+    public void teardown() {
         if (httpServer != null) {
             httpServer.stop();
             httpServer = null;
-        }
-        if (mcpServer != null) {
-            mcpServer.closeGracefully();
-            mcpServer = null;
         }
         if (rpcListener != null) {
             server.getEventManager().unregisterListener(this, rpcListener);
@@ -209,7 +188,7 @@ public final class McpProxyPlugin implements StateHolder<ProxyConfig> {
      * Forwards a backend RPC push to connected MCP clients (off the proxy thread).
      */
     private void notifyClients() {
-        final McpSyncServer mcp = this.mcpServer;
+        final McpSyncServer mcp = httpServer == null ? null : httpServer.mcpSyncServer();
         if (mcp == null) {
             return;
         }
@@ -250,6 +229,10 @@ public final class McpProxyPlugin implements StateHolder<ProxyConfig> {
 
     public String serverId() {
         return config == null ? "?" : config.serverId();
+    }
+
+    public Logger logger() {
+        return logger;
     }
 
     /**

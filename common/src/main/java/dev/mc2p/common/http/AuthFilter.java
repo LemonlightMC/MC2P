@@ -1,6 +1,6 @@
 package dev.mc2p.common.http;
 
-import dev.mc2p.common.activity.ClientActivityTracker;
+import dev.mc2p.common.StateHolder;
 import dev.mc2p.common.config.RestrictionsConfig;
 import dev.mc2p.common.ratelimit.TokenBucketRateLimiter;
 import dev.mc2p.common.tokens.TokenManager;
@@ -32,33 +32,22 @@ import org.slf4j.LoggerFactory;
  */
 public final class AuthFilter implements Filter {
 
-    public static final String ATTR_RESTRICTIONS = "mc2p.restrictions";
-    public static final String ATTR_TOKEN_ID = "mc2p.tokenId";
-    public static final String ATTR_REMOTE_IP = "mc2p.remoteIp";
-    public static final String ATTR_CLIENT_NAME = "mc2p.clientName";
-
     private static final Logger log = LoggerFactory.getLogger(AuthFilter.class);
 
-    private final TokenManager tokens;
     private final RestrictionsConfig serverRestrictions;
     private final List<Cidr> ipAllowlist;
     private final TokenBucketRateLimiter rateLimiter;
     private final int bodyLimitBytes;
-    private final ClientActivityTracker activity;
+    private final StateHolder<?> holder;
 
     public AuthFilter(
-            final TokenManager tokens,
-            final RestrictionsConfig serverRestrictions,
-            final List<String> ipAllowlist,
-            final TokenBucketRateLimiter rateLimiter,
-            final int bodyLimitBytes,
-            final ClientActivityTracker activity) {
-        this.tokens = tokens;
+            final StateHolder<?> holder,
+            final RestrictionsConfig serverRestrictions) {
+        this.holder = holder;
         this.serverRestrictions = serverRestrictions;
-        this.ipAllowlist = Cidr.parseAll(ipAllowlist);
-        this.rateLimiter = rateLimiter;
-        this.bodyLimitBytes = bodyLimitBytes;
-        this.activity = activity;
+        this.ipAllowlist = Cidr.parseAll(holder.config().auth().ipAllowlist());
+        this.rateLimiter = new TokenBucketRateLimiter(holder.config().auth().rateLimit());
+        this.bodyLimitBytes = holder.config().mcp().bodyLimitBytes();
     }
 
     @Override
@@ -101,18 +90,18 @@ public final class AuthFilter implements Filter {
             return;
         }
         final String presented = auth.substring(7).trim();
-        final TokenManager.Token token = tokens.authenticate(presented);
+        final TokenManager.Token token = holder.tokens().authenticate(presented);
         if (token == null) {
             reject(response, 401, "{\"error\":\"unauthorized\"}");
             return;
         }
 
         final RestrictionsConfig effective = serverRestrictions.merge(token.restrictions());
-        request.setAttribute(ATTR_RESTRICTIONS, effective);
-        request.setAttribute(ATTR_TOKEN_ID, token.tokenId());
-        request.setAttribute(ATTR_REMOTE_IP, remoteIp);
-        request.setAttribute(ATTR_CLIENT_NAME, token.name());
-        activity.record(token.tokenId(), token.name(), remoteIp);
+        request.setAttribute(McpRequestContextExtractor.KEY_RESTRICTIONS, effective);
+        request.setAttribute(McpRequestContextExtractor.KEY_TOKEN_ID, token.tokenId());
+        request.setAttribute(McpRequestContextExtractor.KEY_REMOTE_IP, remoteIp);
+        request.setAttribute(McpRequestContextExtractor.KEY_CLIENT_NAME, token.name());
+        holder.activity().record(token.tokenId(), token.name(), remoteIp);
 
         chain.doFilter(request, response);
     }

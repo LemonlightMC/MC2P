@@ -2,10 +2,10 @@ package dev.mc2p.plugin;
 
 import dev.jorel.commandapi.CommandAPI;
 import dev.jorel.commandapi.CommandAPIPaperConfig;
+import dev.mc2p.common.StateHolder;
 import dev.mc2p.common.activity.ActivityLogger;
 import dev.mc2p.common.activity.ClientActivityTracker;
 import dev.mc2p.common.config.ConfigSupport;
-import dev.mc2p.common.http.HttpEndpointConfig;
 import dev.mc2p.common.http.McpHttpServer;
 import dev.mc2p.common.tokens.ProxySecret;
 import dev.mc2p.common.tokens.TokenManager;
@@ -22,7 +22,6 @@ import dev.mc2p.plugin.tools.ToolInvoker;
 import dev.mc2p.plugin.tools.ToolRegistry;
 import dev.mc2p.plugin.tools.WriteTools;
 import io.modelcontextprotocol.server.McpSyncServer;
-import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
@@ -36,7 +35,7 @@ import org.slf4j.LoggerFactory;
  * port) or,
  * behind a proxy, as a zero-port RPC backend over {@code mc2p:rpc}.
  */
-public final class Mc2pPlugin extends JavaPlugin {
+public final class Mc2pPlugin extends JavaPlugin implements StateHolder<BackendConfig> {
 
     private static final Logger log = LoggerFactory.getLogger(Mc2pPlugin.class);
 
@@ -49,7 +48,6 @@ public final class Mc2pPlugin extends JavaPlugin {
     private ToolRegistry registry;
     private ToolInvoker invoker;
     private McpHttpServer httpServer;
-    private McpSyncServer mcpServer;
     private BackendRpcServer rpcServer;
     private String mode;
 
@@ -63,7 +61,7 @@ public final class Mc2pPlugin extends JavaPlugin {
         CommandAPI.onEnable();
         try {
             ConfigFiles.ensureInitialConfig(this, getDataFolder().toPath());
-            applyConfig();
+            init();
         } catch (final RuntimeException e) {
             log.error("MC2P failed to start: {}", e.getMessage(), e);
             getServer().getPluginManager().disablePlugin(this);
@@ -86,7 +84,7 @@ public final class Mc2pPlugin extends JavaPlugin {
      * Applies (or re-applies) the configuration; fully tears down and rebuilds the
      * runtime.
      */
-    public void applyConfig() {
+    public void init() {
         teardown();
         final Path dataDir = getDataFolder().toPath();
         final Path configFile = ConfigFiles.activeConfigFile(dataDir);
@@ -101,14 +99,14 @@ public final class Mc2pPlugin extends JavaPlugin {
         }
 
         if ("backend".equals(mode)) {
-            ProxySecret.resolve(config().proxy().secretEnv(), dataDirectory());
+            ProxySecret.resolve(config().rpc().secretEnv(), dataDirectory());
 
             if (!ProxySecret.isPresent()) {
                 log.error(
                         "MC2P backend mode: no proxy secret is set ({} env var or plugins/MC2P/proxy-secret). "
                                 + "Set the same secret here and on the proxy, or run /mc2p setup on the proxy to "
                                 + "generate one. Disabling the MCP backend.",
-                        config.proxy().secretEnv());
+                        config.rpc().secretEnv());
                 getServer().getPluginManager().disablePlugin(this);
                 return;
             }
@@ -128,7 +126,7 @@ public final class Mc2pPlugin extends JavaPlugin {
                 config.audit().maxMb(),
                 config.audit().maxFiles());
 
-        mainThread = new MainThread(this, config.proxy().timeoutMs());
+        mainThread = new MainThread(this, config.rpc().timeoutMs());
         facade = new PaperServerFacade(this, mainThread, config.serverId(), config.restartStrategy());
 
         registry = new ToolRegistry();
@@ -144,33 +142,15 @@ public final class Mc2pPlugin extends JavaPlugin {
     }
 
     private void startStandalone(final Path dataDir) {
-        final BackendConfig.McpSection mcp = config.mcp();
-        final BackendConfig.McpSection.TlsSection tls = mcp.tls();
-        final HttpServletStreamableServerTransportProvider transport = McpServerBootstrap.transport(mcp.endpoint());
-        mcpServer = McpServerBootstrap.build(
-                registry, facade, invoker, transport, getPluginMeta().getVersion(), mainThread);
-
-        final HttpEndpointConfig http = new HttpEndpointConfig(
-                mcp.bind(),
-                mcp.port(),
-                mcp.endpoint(),
-                mcp.bodyLimitBytes(),
-                tls.mode(),
-                tls.keystore(),
-                tls.passwordEnv());
-        httpServer = new McpHttpServer(
-                http,
-                tokens,
-                config.effectiveRestrictions(),
-                config.auth().ipAllowlist(),
-                config.auth().rateLimit(),
-                dataDir,
-                config.serverId(),
-                activity);
-        httpServer.registerServlet(transport, mcp.endpoint());
-        httpServer.registerServlet(
-                new HealthzServlet(config.serverId(), getPluginMeta().getVersion(), mode, config.restartStrategy()),
-                "/healthz");
+        httpServer = new McpHttpServer(this, config.effectiveRestrictions(),
+                (transport) -> {
+                    return McpServerBootstrap.build(
+                            registry, facade, invoker, transport, getPluginMeta().getVersion(), mainThread);
+                },
+                () -> {
+                    return new HealthzServlet(config.serverId(), getPluginMeta().getVersion(), mode,
+                            config.restartStrategy());
+                });
         httpServer.start();
     }
 
@@ -180,34 +160,30 @@ public final class Mc2pPlugin extends JavaPlugin {
                 invoker,
                 config.effectiveRestrictions(),
                 config.serverId(),
-                config.proxy().rpcChannel(),
+                config.rpc().channel(),
                 ProxySecret.retrieve().value(),
-                config.proxy().timeoutMs());
+                config.rpc().timeoutMs());
         getServer()
                 .getMessenger()
-                .registerIncomingPluginChannel(this, config.proxy().rpcChannel(), rpcServer);
+                .registerIncomingPluginChannel(this, config.rpc().channel(), rpcServer);
         getServer()
                 .getMessenger()
-                .registerOutgoingPluginChannel(this, config.proxy().rpcChannel());
-        log.info("MC2P backend registered on plugin channel {}", config.proxy().rpcChannel());
+                .registerOutgoingPluginChannel(this, config.rpc().channel());
+        log.info("MC2P backend registered on plugin channel {}", config.rpc().channel());
     }
 
-    private void teardown() {
+    public void teardown() {
         if (httpServer != null) {
             httpServer.stop();
             httpServer = null;
         }
-        if (mcpServer != null) {
-            mcpServer.closeGracefully();
-            mcpServer = null;
-        }
         if (rpcServer != null) {
             getServer()
                     .getMessenger()
-                    .unregisterIncomingPluginChannel(this, config.proxy().rpcChannel());
+                    .unregisterIncomingPluginChannel(this, config.rpc().channel());
             getServer()
                     .getMessenger()
-                    .unregisterOutgoingPluginChannel(this, config.proxy().rpcChannel());
+                    .unregisterOutgoingPluginChannel(this, config.rpc().channel());
             rpcServer = null;
         }
     }
@@ -292,6 +268,10 @@ public final class Mc2pPlugin extends JavaPlugin {
         return false;
     }
 
+    public Logger logger() {
+        return log;
+    }
+
     /**
      * Creates a default-named token if the store has no active tokens and returns
      * the freshly generated plaintext (shown exactly once).
@@ -335,7 +315,7 @@ public final class Mc2pPlugin extends JavaPlugin {
             }
             return;
         }
-        final McpSyncServer server = this.mcpServer;
+        final McpSyncServer server = httpServer == null ? null : httpServer.mcpSyncServer();
         if (server == null) {
             return;
         }

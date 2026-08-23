@@ -125,7 +125,7 @@ public final class Mc2pCommand {
         source.sendMessage(Component.text("  serverId: " + plugin.serverId()));
         source.sendMessage(Component.text("  mcp endpoint: " + config.mcp().bind() + ":"
                 + config.mcp().port() + config.mcp().endpoint() + " (tls="
-                + config.mcp().tls().mode() + ")"));
+                + config.mcp().tlsMode() + ")"));
         source.sendMessage(
                 Component.text("  backends: " + plugin.backendServerIds().size()));
         source.sendMessage(Component.text("  tools registered: " + plugin.toolCount()));
