@@ -13,7 +13,7 @@ dependencies {
     annotationProcessor("com.velocitypowered:velocity-api:4.1.0-SNAPSHOT")
     implementation("dev.jorel:commandapi-velocity-shade:12.0.0")
 
-    implementation("io.modelcontextprotocol.sdk:mcp:2.0.0")
+    implementation("io.modelcontextprotocol.sdk:mcp:2.0.1")
     implementation("org.eclipse.jetty:jetty-server:12.1.12")
     implementation("org.eclipse.jetty.ee10:jetty-ee10-servlet:12.1.12")
     implementation("tools.jackson.core:jackson-databind:3.2.2")

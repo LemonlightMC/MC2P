@@ -6,7 +6,7 @@ dependencies {
     api("org.yaml:snakeyaml:2.6")
     implementation("org.eclipse.jetty:jetty-server:12.1.12")
     implementation("org.eclipse.jetty.ee10:jetty-ee10-servlet:12.1.12")
-    implementation("io.modelcontextprotocol.sdk:mcp:2.0.0")
+    implementation("io.modelcontextprotocol.sdk:mcp:2.0.1")
 }
 
 extensions.extraProperties["moduleName"] = "common"
