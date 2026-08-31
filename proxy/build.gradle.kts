@@ -9,8 +9,8 @@ dependencies {
     implementation(project(":common"))
 
     compileOnly("org.slf4j:slf4j-api:2.0.18")
-    compileOnly("com.velocitypowered:velocity-api:4.0.0")
-    annotationProcessor("com.velocitypowered:velocity-api:4.1.0-SNAPSHOT")
+    compileOnly("com.velocitypowered:velocity-api:4.1.1")
+    annotationProcessor("com.velocitypowered:velocity-api:4.1.1")
     implementation("dev.jorel:commandapi-velocity-shade:12.0.0")
 
     implementation("io.modelcontextprotocol.sdk:mcp:2.0.0")
