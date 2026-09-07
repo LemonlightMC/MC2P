@@ -1,6 +1,6 @@
 dependencies {
     compileOnly("io.papermc.paper:paper-api:26.2.build.112-stable")
-    compileOnly("org.slf4j:slf4j-api:2.0.18")
+    compileOnly("org.slf4j:slf4j-api:2.0.19")
 
     api("tools.jackson.core:jackson-databind:3.2.2")
     api("org.yaml:snakeyaml:2.6")

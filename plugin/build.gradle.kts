@@ -9,7 +9,7 @@ dependencies {
     implementation(project(":common"))
 
     compileOnly("io.papermc.paper:paper-api:26.2.build.112-stable")
-    compileOnly("org.slf4j:slf4j-api:2.0.18")
+    compileOnly("org.slf4j:slf4j-api:2.0.19")
 
     implementation("dev.jorel:commandapi-paper-shade:12.0.0")
 
