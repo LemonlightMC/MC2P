@@ -17,7 +17,7 @@ dependencies {
     implementation("org.eclipse.jetty:jetty-server:12.1.12")
     implementation("org.eclipse.jetty.ee10:jetty-ee10-servlet:12.1.12")
     implementation("tools.jackson.core:jackson-databind:3.2.2")
-    implementation("org.yaml:snakeyaml:2.6")
+    implementation("org.yaml:snakeyaml:2.7")
 }
 
 tasks.withType<ShadowJar>().configureEach {
