@@ -11,7 +11,7 @@ dependencies {
     compileOnly("org.slf4j:slf4j-api:2.0.18")
     compileOnly("com.velocitypowered:velocity-api:4.0.0")
     annotationProcessor("com.velocitypowered:velocity-api:4.1.0-SNAPSHOT")
-    implementation("dev.jorel:commandapi-velocity-shade:12.0.0")
+    implementation("dev.jorel:commandapi-velocity-shade:12.1.0")
 
     implementation("io.modelcontextprotocol.sdk:mcp:2.0.0")
     implementation("org.eclipse.jetty:jetty-server:12.1.12")
